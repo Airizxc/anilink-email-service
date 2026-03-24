@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// NODE.JS BACKEND: Send PIN Email via Gmail SMTP
+// NODE.JS BACKEND: Send PIN Email via Brevo API
 // ═══════════════════════════════════════════════════════════════════
 // 
 // Deploy on Railway.app - See RAILWAY_SETUP.md for instructions
@@ -7,7 +7,6 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const express = require('express');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 
 const app = express();
@@ -17,18 +16,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Gmail transporter with explicit TLS settings
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: false,  // Use TLS, not SSL
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASSWORD,
-  },
-  connectionTimeout: 15000,  // 15 seconds
-  socketTimeout: 15000,      // 15 seconds
-});
+// Brevo API Configuration
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'anilink@ericizx.com';
+const SENDER_NAME = 'AniLink';
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -45,13 +37,16 @@ app.post('/send-pin', async (req, res) => {
       return res.status(400).json({ error: 'Email and PIN required' });
     }
 
-    // Validate Gmail credentials
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_PASSWORD) {
-      console.error('Gmail credentials not configured');
+    // Validate Brevo API key
+    if (!BREVO_API_KEY) {
+      console.error('❌ Brevo API key not configured');
       return res.status(500).json({ 
-        error: 'Email service not configured. Set GMAIL_USER and GMAIL_PASSWORD environment variables.' 
+        error: 'Email service not configured. Set BREVO_API_KEY environment variable.' 
       });
     }
+
+    console.log('📧 Attempting to send PIN via Brevo...');
+    console.log('To:', email);
 
     // Email HTML template
     const htmlBody = `
@@ -78,13 +73,32 @@ app.post('/send-pin', async (req, res) => {
   </footer>
 </div>`;
 
-    // Send email
-    await transporter.sendMail({
-      from: `AniLink <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: `Your AniLink Security PIN: ${pin}`,
-      html: htmlBody,
+    // Call Brevo API
+    const response = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: {
+          name: SENDER_NAME,
+          email: SENDER_EMAIL,
+        },
+        to: [
+          {
+            email: email,
+          },
+        ],
+        subject: `Your AniLink Security PIN: ${pin}`,
+        htmlContent: htmlBody,
+      }),
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Brevo API error: ${response.status}`);
+    }
 
     console.log(`✓ PIN sent to ${email}`);
 
@@ -94,7 +108,7 @@ app.post('/send-pin', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error sending PIN:', error.message);
+    console.error('❌ Error sending PIN:', error.message);
     return res.status(500).json({
       error: `Failed to send PIN: ${error.message}`,
     });
@@ -104,7 +118,8 @@ app.post('/send-pin', async (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`✓ AniLink PIN Email Service running on port ${PORT}`);
-  console.log(`✓ Gmail: ${process.env.GMAIL_USER ? 'Configured' : 'NOT configured'}`);
+  console.log(`✓ Brevo: ${BREVO_API_KEY ? 'Configured' : 'NOT configured'}`);
+  console.log(`✓ Sender: ${SENDER_NAME} <${SENDER_EMAIL}>`);
 });
 
 module.exports = app;
