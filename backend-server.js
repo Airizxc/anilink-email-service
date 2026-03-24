@@ -17,13 +17,15 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Gmail transporter
+// Gmail transporter with timeout settings
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_PASSWORD,
   },
+  connectionTimeout: 10000,  // 10 seconds
+  socketTimeout: 10000,      // 10 seconds
 });
 
 // Health check endpoint
