@@ -20,7 +20,7 @@ app.use(express.json());
 // Gmail transporter with explicit TLS settings
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,
+  port: 465,
   secure: false,  // Use TLS, not SSL
   auth: {
     user: process.env.GMAIL_USER,
